@@ -131,21 +131,14 @@ void sd_data_write(u16 *buff, u8 *crc16buff)
 			// 4 halfwords are transmitted to the Supercard at once, for timing purposes
 			// Only the first halfword needs to contain data for standard SuperCards
 			// For the SuperCard Lite, the data is split into 4 nibbles, one per halfword, with this arrangment:
-			//		 The first nibble is taken from bits 0-3 of the first halfword
-			//		 The second nibble is taken from bits 8-11 of the second halfword
-			//		 The third nibble is taken from bits 0-3 of the third halfword
-			//		 The fourth nibble is taken from bits 8-11 of the fourth halfword
-				data |= (data << 20);	//strange, it works without
+			//		 The first nibble is taken from bits 4-7 of the second halfword
+			//		 The second nibble is taken from bits 4-7 of the first halfword
+			//		 The third nibble is taken from bits 4-7 of the fourth halfword
+			//		 The fourth nibble is taken from bits 4-7 of the third halfword
+				data |= (data << 20);
 				*data_write_u32 = data;
 				*data_write_u32 = (data >> 8);
 			};
-		// auto writeU32 = [data_write_u32](uint32_t data)//lambda Function
-		//	 {
-		//		 *data_write_u32 = data;
-		//		 *data_write_u32 = (data >> 8);
-		//		 *data_write_u32 = (data >> 16);
-		//		 *data_write_u32 = (data >> 24);//居然能用,但是好像镜像只镜像到ADDR + 4
-		//	 };
 
 #define LOAD_ORR_CONSTANT \
 	"mov     r4, #255\n" \
