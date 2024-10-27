@@ -126,6 +126,15 @@ void sd_data_write(u16 *buff, u8 *crc16buff)
 
 		auto writeU16 = [data_write_u32](uint32_t data)//lambda Function
 			{
+				
+			// Write the data to the card
+			// 4 halfwords are transmitted to the Supercard at once, for timing purposes
+			// Only the first halfword needs to contain data for standard SuperCards
+			// For the SuperCard Lite, the data is split into 4 nibbles, one per halfword, with this arrangment:
+			//		 The first nibble is taken from bits 0-3 of the first halfword
+			//		 The second nibble is taken from bits 8-11 of the second halfword
+			//		 The third nibble is taken from bits 0-3 of the third halfword
+			//		 The fourth nibble is taken from bits 8-11 of the fourth halfword
 				data |= (data << 20);	//strange, it works without
 				*data_write_u32 = data;
 				*data_write_u32 = (data >> 8);
