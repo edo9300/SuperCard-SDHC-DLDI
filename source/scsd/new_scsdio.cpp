@@ -122,7 +122,7 @@ void sd_data_write(u16 *buff, u8 *crc16buff)
 
 	*data_write_u16 = 0; // start bit
 	{
-		MemcntGuard guard{};
+		MemcntGuard guard{false};
 
 		auto writeU16 = [data_write_u32](uint32_t data)//lambda Function
 			{
