@@ -43,6 +43,7 @@
 #endif
 
 #include "scsd/new_scsdio.h"
+#include "scsd/sc_commands.h"
 
 const char build_info[]=
 "SuperCard-SDHC-DLDI Ver 1.0 The 'Moon Eclipse' "
@@ -55,7 +56,6 @@ const char* get_build_info(){
 }
 
 bool startup(void) {
-    sc_mode(en_sdram + en_sdcard);
     return MemoryCard_IsInserted() && init_sd();
 }
 
@@ -67,14 +67,11 @@ bool clearStatus (void) {
     return true;
 }
 bool readSectors (u32 sector, u32 numSectors, void* buffer) {
-    sc_mode(en_sdram + en_sdcard);
-    ReadSector(buffer,sector,numSectors);
-    return true;
+    return ReadSector(buffer,sector,numSectors);
 }
 
 
 bool writeSectors (u32 sector, u32 numSectors, void* buffer) {
-    sc_mode(en_sdram + en_sdcard);
     WriteSector(buffer,sector,numSectors);
     return true;
 }
