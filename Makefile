@@ -33,7 +33,7 @@ CFLAGS	:=	-g -Wall -Ofast\
 			-ffast-math \
 			$(ARCH)
 
-CFLAGS	+=	$(INCLUDE) -DARM7 -fPIC
+CFLAGS	+=	$(INCLUDE) -fPIC
 
 CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++20
 
