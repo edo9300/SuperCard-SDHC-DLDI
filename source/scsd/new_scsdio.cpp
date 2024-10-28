@@ -66,12 +66,12 @@ bool ReadSector(uint8_t *buff, uint32_t sector, uint32_t readnum)
 	auto param = isSDHC ? sector : (sector << 9);
 	if(readnum == 1){
 		SDCommand(0x11, param);
-		MemcntGuard guard{isSCLite};
+		MemcntGuard guard{!!isSCLite};
 		res = SCSD_readData(buff);
-	}else{
+	} else {
 		SDCommand(0x12, param); // R0 = 0x12, R1 = 0, R2 as calculated above
 		{
-			MemcntGuard guard{isSCLite};
+			MemcntGuard guard{!!isSCLite};
 			for(auto buffer_end = buff + readnum*(512); buff < buffer_end; buff += 512)
 			{
 				res = SCSD_readData(buff); // Add R6, left shifted by 9, to R4 before casting
