@@ -44,6 +44,7 @@
 
 #include "scsd/new_scsdio.h"
 #include "scsd/sc_commands.h"
+#include "scsd/sd.h"
 
 const char build_info[]=
 "SuperCard-SDHC-DLDI Ver 1.0 The 'Moon Eclipse' "
@@ -56,7 +57,7 @@ const char* get_build_info(){
 }
 
 bool startup(void) {
-    return MemoryCard_IsInserted() && init_sd();
+    return MemoryCard_IsInserted() && SDInit();
 }
 
 bool isInserted (void) {

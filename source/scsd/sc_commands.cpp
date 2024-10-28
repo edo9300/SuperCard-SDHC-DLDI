@@ -2,6 +2,8 @@
 #include "sc_commands.h"
 #include <nds/memory.h>
 
+bool isSCLite = false;
+
 #define SC_FLASH_IDLE			((u16) 0xF0)
 
 static std::pair<vu16*, vu16*> get_magic_addrs(bool lite) {
@@ -52,7 +54,7 @@ bool try_guess_lite() {
 		return (upper_half << 16) | magic;
 	};
 	if(auto id = get_flash_id(true); id != 0)
-		return true;
+		return (isSCLite = true);
 	
 	return false;
 }
