@@ -10,7 +10,7 @@ void SDSendClock(uint32_t num) {
 	}
 }
 
-bool isSDHC = false;
+uint16_t isSDHC = false;
 
 inline constexpr auto NUM_STARTUP_CLOCKS = 30000;
 inline constexpr auto GO_IDLE_STATE = 0;
@@ -50,7 +50,7 @@ bool SDInit(){
 
 	uint8_t responseBuffer[17] = {0};
 	isSDHC = false;
-	bool cmd8Response = SDCommandAndReadResponse(CMD8, 0x1AA, responseBuffer, 17);
+	uint16_t cmd8Response = SDCommandAndReadResponse(CMD8, 0x1AA, responseBuffer, 17);
 	if (cmd8Response && responseBuffer[0] == CMD8 && responseBuffer[1] == 0 && responseBuffer[2] == 0 && responseBuffer[3] == 0x1 && responseBuffer[4] == 0xAA) {
 		isSDHC = true;//might be
 	}
@@ -71,7 +71,7 @@ bool SDInit(){
 
 			if (SDCommandAndReadResponse(SD_APP_OP_COND, arg, responseBuffer, 6) &&//ACMD41
 				((responseBuffer[1] & (1<<7)) != 0)/*Busy:0b:initing 1b:init completed*/) {
-				bool CCS = responseBuffer[1] & (1<<6);//0b:SDSC  1b:SDHC/SDXC
+				uint16_t CCS = responseBuffer[1] & (1<<6);//0b:SDSC  1b:SDHC/SDXC
 				if(!CCS && isSDHC)
 					isSDHC = false;
 				break; // Card is ready

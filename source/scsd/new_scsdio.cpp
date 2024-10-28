@@ -60,7 +60,7 @@ void WriteSector(uint8_t* buff, uint32_t sector, uint32_t writenum)
 
 bool ReadSector(uint8_t *buff, uint32_t sector, uint32_t readnum)
 {
-	bool res = true;
+	uint16_t res = true;
 	MemcntGuard guard{true};
     sc_change_mode(en_sdram + en_sdcard);
 	auto param = isSDHC ? sector : (sector << 9);

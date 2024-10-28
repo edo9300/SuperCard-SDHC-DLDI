@@ -22,7 +22,7 @@ typedef enum SC_FLASH_COMMAND {
 
 void sc_send_command(SC_FLASH_COMMAND command);
 bool try_guess_lite(void);
-extern bool isSCLite;
+extern uint16_t isSCLite;
 
 #ifdef __cplusplus
 }

@@ -1,7 +1,7 @@
 #include <utility>
 #include "sc_commands.h"
 
-bool isSCLite = false;
+uint16_t isSCLite = false;
 
 #define SC_FLASH_IDLE			((uint16_t) 0xF0)
 
