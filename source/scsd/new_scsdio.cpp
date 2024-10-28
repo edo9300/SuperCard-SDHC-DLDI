@@ -5,7 +5,10 @@
 #include "sd.h"
 
 template<typename T>
-static inline auto& REG_SD_DATAADD = *(volatile T*)0x09000000;
+static inline auto& REG_SCSD_DATAADD = *(volatile T*)0x09000000;
+
+template<typename T>
+static inline auto& REG_SCSD_DATAREAD = *(volatile T*)0x09100000;
 
 bool SCSD_readData(void* buffer);
 
@@ -13,10 +16,20 @@ uint64_t sdio_crc16_4bit_checksum(uint32_t *data, uint32_t num_words);
 
 static constexpr auto SCSD_STS_BUSY = 0x0100;
 
-inline void WaitBusy(bool extraRead = false) {
-	while ((REG_SD_DATAADD<uint16_t> & SCSD_STS_BUSY) == 0);
-	if(extraRead)
-		dummy_read(REG_SD_DATAADD<uint16_t>);
+inline void WaitOnRead(bool needsBusy) {
+	while (true) {
+		auto isBusy = (REG_SCSD_DATAREAD<uint16_t> & SCSD_STS_BUSY) != 0;
+		if(isBusy != needsBusy)
+			return;
+	}
+}
+
+inline void WaitOnWrite(bool needsBusy) {
+	while (true) {
+		auto isBusy = (REG_SCSD_DATAADD<uint16_t> & SCSD_STS_BUSY) != 0;
+		if(isBusy != needsBusy)
+			return;
+	}
 }
 
 void WriteSector(uint8_t* buff, uint32_t sector, uint32_t writenum)
@@ -41,7 +54,7 @@ void WriteSector(uint8_t* buff, uint32_t sector, uint32_t writenum)
 		SDCommandAndDropResponse(12, 0);
 	}
 	SDSendClock(0x10);
-	WaitBusy();
+	WaitOnWrite(false);
 	return;
 }
 
@@ -78,9 +91,9 @@ bool ReadSector(uint8_t *buff, uint32_t sector, uint32_t readnum)
 
 void sd_data_write(uint16_t *buff, uint8_t *crc16buff)
 {
-	WaitBusy(true); // Note:两边的等待是不一致的
-
-	REG_SD_DATAADD<uint16_t> = 0; // start bit
+	WaitOnWrite(false); // Note:两边的等待是不一致的
+	dummy_read(REG_SCSD_DATAADD<uint16_t>);
+	REG_SCSD_DATAADD<uint16_t> = 0; // start bit
 	{
 		MemcntGuard guard{false};
 
@@ -96,8 +109,8 @@ void sd_data_write(uint16_t *buff, uint8_t *crc16buff)
 			//		 The third nibble is taken from bits 4-7 of the fourth halfword
 			//		 The fourth nibble is taken from bits 4-7 of the third halfword
 				data |= (data << 20);
-				REG_SD_DATAADD<uint32_t> = data;
-				REG_SD_DATAADD<uint32_t> = (data >> 8);
+				REG_SCSD_DATAADD<uint32_t> = data;
+				REG_SCSD_DATAADD<uint32_t> = (data >> 8);
 			};
 
 #define LOAD_ORR_CONSTANT \
@@ -141,7 +154,7 @@ void sd_data_write(uint16_t *buff, uint8_t *crc16buff)
 				"blt 1b\n"
 				WRITE_U16
 				: // 没有输出
-				: "r"((uint32_t)buff),"r"((uint32_t)&REG_SD_DATAADD<uint32_t>),"r"(((uint32_t)buff) + 510/*512-2*/)
+				: "r"((uint32_t)buff),"r"((uint32_t)&REG_SCSD_DATAADD<uint32_t>),"r"(((uint32_t)buff) + 510/*512-2*/)
 				: "r0", "r1", "r2", "r3", "r4", "cc"// 破坏列表
 			);
 		}
@@ -154,7 +167,7 @@ void sd_data_write(uint16_t *buff, uint8_t *crc16buff)
 				"cmp %0, %2\n"
 				"blt 2b"
 				: // 没有输出
-				: "r"((uint32_t)buff),"r"((uint32_t)&REG_SD_DATAADD<uint32_t>),"r"(((uint32_t)buff) + 512)
+				: "r"((uint32_t)buff),"r"((uint32_t)&REG_SCSD_DATAADD<uint32_t>),"r"(((uint32_t)buff) + 512)
 				: "r0", "r1", "r2", "r3", "r4", "cc"// 破坏列表
 			);
 			// uint32_t *buff_u32 = (uint32_t*)buff;
@@ -184,7 +197,7 @@ void sd_data_write(uint16_t *buff, uint8_t *crc16buff)
 				WRITE_U16
 				WRITE_U16
 				: // 没有输出
-				: "r"((uint32_t)crc16buff),"r"((uint32_t)&REG_SD_DATAADD<uint32_t>)
+				: "r"((uint32_t)crc16buff),"r"((uint32_t)&REG_SCSD_DATAADD<uint32_t>)
 				: "r0", "r1", "r2", "r3", "cc"// 破坏列表
 			);
 		}
@@ -194,7 +207,7 @@ void sd_data_write(uint16_t *buff, uint8_t *crc16buff)
 				WRITE_U32
 				WRITE_U32
 				: // 没有输出
-				: "r"((uint32_t)crc16buff),"r"((uint32_t)&REG_SD_DATAADD<uint32_t>)
+				: "r"((uint32_t)crc16buff),"r"((uint32_t)&REG_SCSD_DATAADD<uint32_t>)
 				: "r0", "r1", "r2", "r3", "r4", "cc"// 破坏列表
 			);
 			// for (int i = 0; i < 4; i++)
@@ -202,18 +215,15 @@ void sd_data_write(uint16_t *buff, uint8_t *crc16buff)
 			//	 writeuint16_t(*crc16buff++);
 			// }
 		}
-		REG_SD_DATAADD<uint16_t> = 0xFF; // end bit
+		REG_SCSD_DATAADD<uint16_t> = 0xFF; // end bit
 	}
-	WaitBusy(); // Note:这个部分与上个部分是不一样的
+	WaitOnWrite(true); // Note:这个部分与上个部分是不一样的
 }
 
-
-auto* const REG_SCSD_DATAREAD_ADDR		= ((volatile uint16_t*)(0x09100000));
-auto* const REG_SCSD_DATAREAD_32_ADDR	= ((volatile uint32_t*)(0x09100000));
 bool SCSD_readData (void* buffer) {
 	uint8_t* buff_u8 = (uint8_t*)buffer;
 	// FIXME: There might be the need for a timeout, 500000 was attempted but wasn't enough
-	WaitBusy();
+	WaitOnRead(true);
 	const uint32_t maskHi = 0xFFFF0000;
 	#define LOAD_U32_ALIGNED_2WORDS \
 			"ldmia  %2, {r0-r7} \n"   /*从REG_SCSD_DATAREAD_32_ADDR读取8个32位值到r0-r7*/  \
@@ -243,15 +253,15 @@ bool SCSD_readData (void* buffer) {
 			"cmp	%0, %1 \n"
 			"blt	1b \n"			  // if buffer<bufferEnd continue;
 			:
-			: "r" (buffer), "r" ((uint32_t)buffer+512), "r" (REG_SCSD_DATAREAD_32_ADDR), "r" (maskHi)
+			: "r" (buffer), "r" ((uint32_t)buffer+512), "r" (&REG_SCSD_DATAREAD<uint32_t>), "r" (maskHi)
 			: "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "memory","cc"
 		);
 		// i=256;
 		// uint16_t* buff = (uint16_t*)buffer;
 		// while(i--) {
 
-		// 	*(REG_SCSD_DATAREAD_32_ADDR);
-		// 	*buff++ = (*(REG_SCSD_DATAREAD_32_ADDR)) >> 16; 
+		// 	dummy_read(REG_SCSD_DATAREAD<uint32_t>);
+		// 	*buff++ = REG_SCSD_DATAREAD<uint32_t> >> 16; 
 		// }
 	}else if ((((uint32_t)buff_u8 & 0x01) == 0)) {//uint16_t aligned
 		asm volatile(
@@ -265,7 +275,7 @@ bool SCSD_readData (void* buffer) {
 			"blt	2b \n"			  // if buffer<bufferEnd continue;
 			LOAD_U32_ALIGNED_U16
 			:
-			: "r" (buffer), "r" ((uint32_t)buffer+510/*512-2*/), "r" (REG_SCSD_DATAREAD_32_ADDR), "r" (maskHi)
+			: "r" (buffer), "r" ((uint32_t)buffer+510/*512-2*/), "r" (&REG_SCSD_DATAREAD<uint32_t>), "r" (maskHi)
 			: "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "memory","cc"
 		);
 	} else 
@@ -273,8 +283,8 @@ bool SCSD_readData (void* buffer) {
 		uint32_t temp;
 		int i=256;
 		while(i--) {
-			*REG_SCSD_DATAREAD_32_ADDR;
-			temp = (*REG_SCSD_DATAREAD_32_ADDR) >> 16;
+			dummy_read(REG_SCSD_DATAREAD<uint32_t>);
+			temp = REG_SCSD_DATAREAD<uint32_t> >> 16; 
 			*buff_u8++ = (uint8_t)temp;
 			*buff_u8++ = (uint8_t)(temp >> 8);
 		}
@@ -284,7 +294,7 @@ bool SCSD_readData (void* buffer) {
 			"ldmia  %0, {r0-r7} \n"   // drop the crc16
 			"ldrh   r1, [%0] \n"   // end by reading as u16
 			:
-			: "r" ((uint32_t)REG_SCSD_DATAREAD_32_ADDR)
+			: "r" (&REG_SCSD_DATAREAD<uint32_t>)
 			: "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7"
 		);
 	// for (i = 0; i < 8; i++) {
