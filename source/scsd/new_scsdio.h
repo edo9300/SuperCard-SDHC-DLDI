@@ -1,19 +1,16 @@
 #pragma once
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "nds/ndstypes.h"
 
-// extern void sc_InitSCMode (void);
-bool MemoryCard_IsInserted (void);
-// extern void sc_sdcard_reset(void);
+bool MemoryCard_IsInserted(void);
 
-void SDCommand(u8 command,u32 sector);
-void sd_data_write(u16 *buff,u8* crc16buff);
-void WriteSector(u8 *buff,u32 sector,u32 writenum);
-bool ReadSector (u8 *buff,u32 sector,u32 readnum);
+void sd_data_write(uint16_t* buff, uint8_t* crc16buff);
+void WriteSector(uint8_t* buff, uint32_t sector, uint32_t writenum);
+bool ReadSector (uint8_t* buff, uint32_t sector, uint32_t readnum);
 
 #ifdef __cplusplus
 }

@@ -106,7 +106,6 @@ void SDCommand(uint8_t command, uint32_t argument)
 
 	dummy_read(REG_SCSD_CMD<uint16_t>);
 
-	tempDataPtr = databuff;
 	auto& send_command_addr = REG_SCSD_CMD<uint32_t>; // 假设sd_comadd也是数据写入地址
 
 	#define SEND_ONE_COMMAND_BYTE \

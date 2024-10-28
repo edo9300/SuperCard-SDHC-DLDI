@@ -22,25 +22,8 @@
  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-
-// When compiling for NDS, make sure NDS is defined
-#ifndef NDS
- #if defined ARM9 || defined ARM7
-  #define NDS
- #endif
-#endif
-
-#ifdef NDS
- #include <nds/ndstypes.h>
-#else
- #include "gba_types.h"
-#endif
-
-#define BYTES_PER_READ 512
-
-#ifndef NULL
- #define NULL 0
-#endif
+#include <stdbool.h>
+#include <stdint.h>
 
 #include "scsd/new_scsdio.h"
 #include "scsd/sc_commands.h"
@@ -49,9 +32,10 @@
 const char build_info[]=
 "SuperCard-SDHC-DLDI Ver 1.0 The 'Moon Eclipse' "
 "[https://github.com/ArcheyChen/SuperCard-SDHC-DLDI]"
-"Author: Ausar Date:2024/03/03\n"
-"Supports:1.SD init 2.SDHC 3.unaligned r/w 4.compatiable with nds-bootstrap"
+"Author: Ausar Date:2024/03/03, edo9300 Date:2024/10/25\n"
+"Supports:1.SD init 2.SDHC 3.unaligned r/w 4.compatiable with nds-bootstrap 5.compatible with Supercard Lite"
 "Please Keep this info";
+
 const char* get_build_info(){
     return build_info;
 }
@@ -60,22 +44,23 @@ bool startup(void) {
     return MemoryCard_IsInserted() && SDInit();
 }
 
-bool isInserted (void) {
+bool isInserted(void) {
     return MemoryCard_IsInserted();
 }
 
-bool clearStatus (void) {
+bool clearStatus(void) {
     return true;
 }
-bool readSectors (u32 sector, u32 numSectors, void* buffer) {
+
+bool readSectors(uint32_t sector, uint32_t numSectors, void* buffer) {
     return ReadSector(buffer,sector,numSectors);
 }
 
-
-bool writeSectors (u32 sector, u32 numSectors, void* buffer) {
+bool writeSectors(uint32_t sector, uint32_t numSectors, void* buffer) {
     WriteSector(buffer,sector,numSectors);
     return true;
 }
+
 bool shutdown(void) {
     return true;
 }

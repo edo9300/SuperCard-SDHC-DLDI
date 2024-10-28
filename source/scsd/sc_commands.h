@@ -1,5 +1,5 @@
 #pragma once
-#include "nds/ndstypes.h"
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -10,7 +10,7 @@ extern "C" {
 #define en_sdcard 2
 #define en_write 4
 
-void sc_change_mode(u16 mode);
+void sc_change_mode(uint16_t mode);
 
 typedef enum SC_FLASH_COMMAND {
 	ERASE		= 0x80,
