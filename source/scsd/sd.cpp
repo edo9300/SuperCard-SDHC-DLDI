@@ -29,7 +29,6 @@ void SDResetCard()
 
 bool SDInit(){
 	MemcntGuard guard{true};
-	try_guess_lite();
 	sc_change_mode(en_sdram + en_sdcard);
 	SDResetCard(); //do we really need that?
 	SDSendClock(NUM_STARTUP_CLOCKS);
