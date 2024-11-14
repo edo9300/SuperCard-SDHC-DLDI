@@ -4,7 +4,11 @@
 #include "memcnt_guard.h"
 #include "sd.h"
 
+#ifdef __BLOCKSDS__
+extern "C" void __aeabi_memcpy4(volatile void *dest, const volatile void *src, int n);
+#else
 #define INLINE_ASM 1
+#endif
 
 template<typename T>
 static inline auto& REG_SCSD_DATAADD = *(volatile T*)0x09000000;
@@ -109,7 +113,6 @@ static inline auto& REG_SCSD_DATAWRITE_1 = *(volatile T*)(0x9000000 + sd_rw1);
 #define SCSD_STS_BUSY 0x100
 
 }
-// extern "C" void __aeabi_memcpy4(volatile void *dest, const void *src, int n);
 
 union ptr_cast {
 	void* ptr;
@@ -118,7 +121,7 @@ union ptr_cast {
 	uint32_t* u32;
 };
 
-#if !INLINE_ASM
+#if !defined(__BLOCKSDS__) && !INLINE_ASM
 static void SCSD_writeData32(uint32_t* buff_u32) {
 	for(int i = (512/32); i; --i) {
 		REG_SCSD_DATAWRITE_4<uint32_t> = *buff_u32++;
@@ -178,9 +181,11 @@ void SCSD_writeData(void* buffer, void* crc_buff)
 	WaitOnWrite(false);
 	dummy_read(REG_SCSD_DATAADD<uint16_t>);
 	REG_SCSD_DATAADD<uint16_t> = 0; // start bit
-		
+
 	if(((intptr_t)buffer & 0x03) == 0) [[likely]] {
-#if !INLINE_ASM
+#if defined(__BLOCKSDS__)
+		__aeabi_memcpy4(&REG_SCSD_DATAWRITE_4<uint32_t>, buffer, 512);
+#elif !INLINE_ASM
 		SCSD_writeData32(ptr_cast{buffer}.u32);
 #else
 		asm volatile(
@@ -205,16 +210,16 @@ void SCSD_writeData(void* buffer, void* crc_buff)
 	REG_SCSD_DATAWRITE_4<uint16_t> = *crc_u16++;
 	REG_SCSD_DATAWRITE_4<uint16_t> = *crc_u16++;
 	REG_SCSD_DATAWRITE_4<uint16_t> = *crc_u16++;
-	
+
 	REG_SCSD_DATAADD<uint16_t> = 0xFF; // end bit
-	
+
 	WaitOnWrite(true);
 	// dummy writes
 	REG_SCSD_DATAADD<uint32_t> = 0;
 	REG_SCSD_DATAADD<uint32_t> = 0;
 }
 
-#if !INLINE_ASM
+#if !defined(__BLOCKSDS__) && !INLINE_ASM
 static void SCSD_readData32(uint32_t* buff_u32) {
 	for(int i = (512/32); i; --i) {
 		*buff_u32++ = REG_SCSD_DATAREAD_4<uint32_t>;
@@ -269,12 +274,14 @@ static void SCSD_readData8(uint8_t* buff_u8) {
 
 static bool SCSD_readData(void* buffer) {
 	dummy_read(SD_STATUS);
-	
+
 	while(SD_BUFF_BIT & 1);
 	dummy_read(REG_SCSD_DATAREAD_4<uint16_t>);
 
 	if(((intptr_t)buffer & 0x03) == 0) [[likely]] {
-#if !INLINE_ASM
+#if defined(__BLOCKSDS__)
+		__aeabi_memcpy4(buffer, &REG_SCSD_DATAREAD_4<uint32_t>, 512);
+#elif !INLINE_ASM
 		SCSD_readData32(ptr_cast{buffer}.u32);
 #else
 		asm volatile(
@@ -293,13 +300,13 @@ static bool SCSD_readData(void* buffer) {
 	} else {
 		SCSD_readData8(ptr_cast{buffer}.u8);
 	}
-	
+
 	//crc16
 	dummy_read(REG_SCSD_DATAREAD_4<uint32_t>);
 	dummy_read(REG_SCSD_DATAREAD_4<uint16_t>);
 	//end bit
 	dummy_read(REG_SCSD_DATAREAD_1<uint16_t>);
-	
+
 	return true;
 }
 

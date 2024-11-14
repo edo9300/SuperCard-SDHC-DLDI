@@ -79,9 +79,13 @@ SOURCES_CPP	:= $(shell find -L $(SOURCEDIRS) -name "*.cpp")
 ifeq ($(DLDI_ARM9),1)
 	ARCH	:= -mcpu=arm946e-s+nofp
 	SPECS	:= $(BLOCKSDS)/sys/crts/dldi_arm9.specs
+	#for __aeabi_memcpy4
+	LIBS += -lnds9
 else
 	ARCH	:= -mcpu=arm7tdmi
 	SPECS	:= $(BLOCKSDS)/sys/crts/dldi_arm7.specs
+	#for __aeabi_memcpy4
+	LIBS += -lnds7
 endif
 
 WARNFLAGS	:= -Wall
@@ -102,13 +106,13 @@ ASFLAGS		+= -x assembler-with-cpp $(DEFINES) $(INCLUDEFLAGS) \
 		   -specs=$(SPECS)
 
 CFLAGS		+= -std=gnu17 $(WARNFLAGS) $(DEFINES) $(INCLUDEFLAGS) \
-		   $(ARCH) -Ofast -ffunction-sections -fdata-sections -fPIC -fpic \
-		   -fno-strict-aliasing -marm -specs=$(SPECS)
+		   $(ARCH) -Os -ffunction-sections -fdata-sections -fPIC -fpic \
+		   -fno-strict-aliasing -mthumb -specs=$(SPECS)
 
 CXXFLAGS	+= -std=gnu++20 $(WARNFLAGS) $(DEFINES) $(INCLUDEFLAGS) \
-		   $(ARCH) -Ofast -ffunction-sections -fdata-sections \
+		   $(ARCH) -Os -ffunction-sections -fdata-sections \
 		   -fno-strict-aliasing -fno-exceptions -fno-rtti -fPIC -fpic \
-		   -marm -specs=$(SPECS)
+		   -mthumb -specs=$(SPECS)
 
 LDFLAGS		:= $(ARCH) $(LIBDIRSFLAGS) -Wl,-Map,$(MAP) $(DEFINES) \
 		   -Wl,--start-group $(LIBS) -Wl,--end-group -specs=$(SPECS)
