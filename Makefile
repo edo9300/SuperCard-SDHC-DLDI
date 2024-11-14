@@ -28,9 +28,9 @@ INCLUDES	:=	include
 #---------------------------------------------------------------------------------
 ARCH	:=	-mthumb-interwork
 
-CFLAGS	:=	-g -Wall -Os \
+CFLAGS	:=	-g -Wall -Ofast \
 			-mcpu=arm7tdmi -mtune=arm7tdmi -fomit-frame-pointer\
-			-fno-strict-aliasing -ffast-math -mthumb \
+			-fno-strict-aliasing -ffast-math -marm \
 			$(ARCH)
 
 CFLAGS	+=	$(INCLUDE) -fPIC

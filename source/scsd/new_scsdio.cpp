@@ -4,7 +4,7 @@
 #include "memcnt_guard.h"
 #include "sd.h"
 
-#define INLINE_ASM 0
+#define INLINE_ASM 1
 
 template<typename T>
 static inline auto& REG_SCSD_DATAADD = *(volatile T*)0x09000000;
@@ -29,6 +29,7 @@ inline void WaitOnWrite(bool needsBusy) {
 
 extern "C" void sdms_data_write_s(void* buff, void* crc16buff);
 
+[[gnu::optimize("Os")]]
 void WriteSector(uint8_t* buff, uint32_t sector, uint32_t writenum)
 {
 	MemcntGuard guard{true};
@@ -56,6 +57,7 @@ void WriteSector(uint8_t* buff, uint32_t sector, uint32_t writenum)
 
 extern "C" void sdms_data_read_s(void* buff);
 
+[[gnu::optimize("Os")]]
 bool ReadSector(uint8_t *buff, uint32_t sector, uint32_t readnum)
 {
 	MemcntGuard guard{true};

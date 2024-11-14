@@ -102,13 +102,13 @@ ASFLAGS		+= -x assembler-with-cpp $(DEFINES) $(INCLUDEFLAGS) \
 		   -specs=$(SPECS)
 
 CFLAGS		+= -std=gnu17 $(WARNFLAGS) $(DEFINES) $(INCLUDEFLAGS) \
-		   $(ARCH) -Os -ffunction-sections -fdata-sections -fPIC -fpic \
-		   -fno-strict-aliasing -mthumb -specs=$(SPECS)
+		   $(ARCH) -Ofast -ffunction-sections -fdata-sections -fPIC -fpic \
+		   -fno-strict-aliasing -marm -specs=$(SPECS)
 
 CXXFLAGS	+= -std=gnu++20 $(WARNFLAGS) $(DEFINES) $(INCLUDEFLAGS) \
-		   $(ARCH) -Os -ffunction-sections -fdata-sections \
+		   $(ARCH) -Ofast -ffunction-sections -fdata-sections \
 		   -fno-strict-aliasing -fno-exceptions -fno-rtti -fPIC -fpic \
-		   -mthumb -specs=$(SPECS)
+		   -marm -specs=$(SPECS)
 
 LDFLAGS		:= $(ARCH) $(LIBDIRSFLAGS) -Wl,-Map,$(MAP) $(DEFINES) \
 		   -Wl,--start-group $(LIBS) -Wl,--end-group -specs=$(SPECS)
