@@ -39,20 +39,14 @@ void WriteSector(uint8_t* buff, uint32_t sector, uint32_t writenum)
 	sc_change_mode(en_sdram + en_sdcard);
 	SDResetCard();
 	auto param = isSDHC ? sector : (sector << 9);
-	if(writenum == 1){
-		SDCommandAndDropResponse(24, param);
-		crc16 = sdio_crc16_4bit_checksum((uint32_t*)(buff),512/sizeof(uint32_t));
+	SDCommandAndDropResponse(WRITE_MULTIPLE_BLOCK, param);
+	for (auto buffEnd = buff + writenum * 512 ; buff < buffEnd; buff += 512)
+	{
+		crc16 = sdio_crc16_4bit_checksum((uint32_t*)(buff), 512 / sizeof(uint32_t));
 		sd_data_write((uint16_t*)(buff), (uint8_t*)(&crc16));
-	} else {
-		SDCommandAndDropResponse(25, param);
-		for (auto buffEnd = buff + writenum * 512 ; buff < buffEnd; buff += 512)
-		{
-			crc16 = sdio_crc16_4bit_checksum((uint32_t*)(buff), 512 / sizeof(uint32_t));
-			sd_data_write((uint16_t*)(buff), (uint8_t*)(&crc16));
-			SDSendClock(0x10);
-		}
-		SDCommandAndDropResponse(12, 0);
+		SDSendClock(0x10);
 	}
+	SDCommandAndDropResponse(STOP_TRANSMISSION, 0);
 	SDSendClock(0x10);
 	WaitOnWrite(false);
 	return;
@@ -62,25 +56,19 @@ bool ReadSector(uint8_t *buff, uint32_t sector, uint32_t readnum)
 {
 	uint16_t res = true;
 	MemcntGuard guard{true};
-    sc_change_mode(en_sdram + en_sdcard);
+	sc_change_mode(en_sdram + en_sdcard);
 	auto param = isSDHC ? sector : (sector << 9);
-	if(readnum == 1){
-		SDCommand(0x11, param);
+	SDCommand(READ_MULTIPLE_BLOCK, param); // R0 = 0x12, R1 = 0, R2 as calculated above
+	{
 		MemcntGuard guard{!!isSCLite};
-		res = SCSD_readData(buff);
-	} else {
-		SDCommand(0x12, param); // R0 = 0x12, R1 = 0, R2 as calculated above
+		for(auto buffer_end = buff + readnum*(512); buff < buffer_end; buff += 512)
 		{
-			MemcntGuard guard{!!isSCLite};
-			for(auto buffer_end = buff + readnum*(512); buff < buffer_end; buff += 512)
-			{
-				res = SCSD_readData(buff); // Add R6, left shifted by 9, to R4 before casting
-				if(!res)
-					break;
-			}
+			res = SCSD_readData(buff); // Add R6, left shifted by 9, to R4 before casting
+			if(!res)
+				break;
 		}
-		SDCommandAndDropResponse(0xC, 0); // Command to presumably stop reading
 	}
+	SDCommandAndDropResponse(STOP_TRANSMISSION, 0); // Command to presumably stop reading
 
 	SDSendClock(0x10);	   // Send clock signal
 	return res;
