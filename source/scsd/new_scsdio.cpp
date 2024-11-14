@@ -12,7 +12,7 @@ static inline auto& REG_SCSD_DATAREAD = *(volatile T*)0x09100000;
 
 bool SCSD_readData(void* buffer);
 
-uint64_t sdio_crc16_4bit_checksum(uint32_t *data, uint32_t num_words);
+uint64_t sdio_crc16_4bit_checksum(void* data, uint32_t num_words);
 
 static constexpr auto SCSD_STS_BUSY = 0x0100;
 
@@ -310,7 +310,7 @@ bool MemoryCard_IsInserted(void) {
 	return (REG_SCSD_CMD<uint16_t> & 0x300)==0; // 读取状态寄存器的值
 }
 
-uint64_t inline calSingleCRC16(uint64_t crc,uint32_t data_in){
+uint64_t inline calSingleCRC16(uint64_t crc, uint32_t data_in){
 	// Shift out 8 bits for each line
 	uint32_t data_out = crc >> 32;
 	crc <<= 32;
@@ -337,24 +337,25 @@ uint32_t loadBigEndU32_u8(uint8_t* &dataBuf){
 	data |= (*dataBuf++);
 	return data;
 }
-uint64_t sdio_crc16_4bit_checksum(uint32_t *dataBuf, uint32_t num_words)
+
+uint64_t sdio_crc16_4bit_checksum(void* dataBuf, uint32_t num_words)
 {
 	uint64_t crc = 0;
 	if((uintptr_t)dataBuf & 3){//uint8_t align
-		uint8_t *data = (uint8_t*)dataBuf;
-		uint8_t *end = (uint8_t*)(dataBuf + num_words);
+		auto* data = static_cast<uint8_t*>(dataBuf);
+		auto* end = data + (num_words * sizeof(uint32_t));
 		while (data < end)
 		{
 			uint32_t data_in = loadBigEndU32_u8(data);
-			crc = calSingleCRC16(crc,data_in);
+			crc = calSingleCRC16(crc, data_in);
 		}
-	}else{
-		uint32_t *data = dataBuf;
-		uint32_t *end = dataBuf + num_words;
+	} else {
+		auto* data = static_cast<uint32_t*>(dataBuf);
+		auto* end = data + num_words;
 		while (data < end)
 		{
 			uint32_t data_in = __builtin_bswap32(*data++);
-			crc = calSingleCRC16(crc,data_in);
+			crc = calSingleCRC16(crc, data_in);
 		}
 	}
 

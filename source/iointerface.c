@@ -52,12 +52,12 @@ bool clearStatus(void) {
     return true;
 }
 
-bool readSectors(uint32_t sector, uint32_t numSectors, void* buffer) {
-    return ReadSector(buffer,sector,numSectors);
+bool readSectors(uint32_t sector, uint32_t numSectors, void* buff) {
+	return ReadSector(buff, sector, numSectors);
 }
 
 bool writeSectors(uint32_t sector, uint32_t numSectors, void* buffer) {
-    WriteSector(buffer,sector,numSectors);
+    WriteSector(buffer, sector, numSectors);
     return true;
 }
 
