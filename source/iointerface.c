@@ -30,8 +30,8 @@
 #include "scsd/sd.h"
 
 const char build_info[]=
-"SuperCard-SDHC-DLDI Ver 1.0 The 'Moon Eclipse' "
-"[https://github.com/ArcheyChen/SuperCard-SDHC-DLDI]"
+"SuperCard Lite-SDHC-DLDI Ver 1.0 "
+"[https://github.com/edo9300/SuperCard-SDHC-DLDI]"
 "Author: Ausar Date:2024/03/03, edo9300 Date:2024/10/25\n"
 "Supports:1.SD init 2.SDHC 3.unaligned r/w 4.compatiable with nds-bootstrap 5.compatible with Supercard Lite"
 "Please Keep this info";

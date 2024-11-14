@@ -30,7 +30,7 @@
 @ Text identifier - can be anything up to 47 chars + terminating null -- 48 bytes
 
     .align  4
-    .asciz "SuperCard (SD Card)"
+    .asciz "SuperCard Lite"
 
 @ Offsets to important sections within the data -- 32 bytes
 
