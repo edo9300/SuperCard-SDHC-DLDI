@@ -37,7 +37,7 @@ inline bool read_response(uint8_t* dest, uint32_t length) {
 	
 	int numBits = length * 8;
 	// The first bit is always 0
-	uint32_t partial_result = ((REG_SCSD_CMD<uint16_t>) & 0x01) << 16 ;
+	uint32_t partial_result = ((REG_SCSD_CMD<uint16_t>) & 0x01) << 16;
 	numBits-=2;
 	// Read the remaining bits in the response.
 	// It's always most significant bit first
@@ -90,7 +90,7 @@ inline uint8_t SD_CRC7(uint8_t *pBuf, int len) {
 	return crc;
 }
 
-void SDCommand(uint8_t command, uint32_t argument)
+void SDCommand(SD_COMMANDS command, uint32_t argument)
 {
 	uint8_t databuff[6];
 	uint8_t *tempDataPtr = databuff;
@@ -102,7 +102,7 @@ void SDCommand(uint8_t command, uint32_t argument)
 	*tempDataPtr++ = argument;
 	*tempDataPtr = SD_CRC7(databuff, 5);
 
-	while (((REG_SCSD_CMD<uint16_t> & 0x01) == 0)){}
+	while (((REG_SCSD_CMD<uint16_t> & 0x01) == 0));
 
 	dummy_read(REG_SCSD_CMD<uint16_t>);
 
@@ -139,12 +139,34 @@ void SDCommand(uint8_t command, uint32_t argument)
 	// }
 }
 
-void SDCommandAndDropResponse(uint8_t command, uint32_t argument, uint32_t bytesToDrop) {
+void SDCommandAndDropResponse(SD_COMMANDS command, uint32_t argument, uint32_t bytesToDrop) {
 	SDCommand(command, argument);
 	drop_response(bytesToDrop);
 }
 
-bool SDCommandAndReadResponse(uint8_t command, uint32_t argument, uint8_t* responseBuffer, uint32_t bytesToRead) {
+bool SDCommandAndReadResponse(SD_COMMANDS command, uint32_t argument, uint8_t* responseBuffer, uint32_t bytesToRead) {
 	SDCommand(command, argument);
 	return read_response(responseBuffer, bytesToRead);
+}
+
+APP_COMMAND_RESULT SDAppCommand(SD_APP_COMMANDS app_command, uint32_t relative_card_address, uint32_t argument) {
+	uint8_t responseBuffer[6]; // purposely uninitialized
+	SDCommandAndReadResponse(APP_CMD, relative_card_address, responseBuffer, 6);
+	if (responseBuffer[0] != APP_CMD)
+		return FAILED_TO_SEND;
+	SDCommand(static_cast<SD_COMMANDS>(app_command), argument);
+	return OK;
+}
+
+APP_COMMAND_RESULT SDAppCommandAndDropResponse(SD_APP_COMMANDS app_command, uint32_t relative_card_address, uint32_t argument, uint32_t bytesToDrop) {
+	if(auto res = SDAppCommand(app_command, relative_card_address, argument); res != OK)
+		return res;
+	drop_response(bytesToDrop);
+	return OK;
+}
+
+APP_COMMAND_RESULT SDAppCommandAndReadResponse(SD_APP_COMMANDS app_command, uint32_t relative_card_address, uint32_t argument, uint8_t* responseBuffer, uint32_t bytesToRead) {
+	if(auto res = SDAppCommand(app_command, relative_card_address, argument); res != OK)
+		return res;
+	return read_response(responseBuffer, bytesToRead) ? OK : FAILED_TO_PARSE_RESPONSE;
 }

@@ -12,18 +12,6 @@ extern "C" {
 
 void sc_change_mode(uint16_t mode);
 
-typedef enum SC_FLASH_COMMAND {
-	ERASE		= 0x80,
-	ERASE_BLOCK	= 0x30,
-	ERASE_CHIP	= 0x10,
-	PROGRAM		= 0xA0,
-	IDENTIFY	= 0x90,
-} SC_FLASH_COMMAND;
-
-void sc_send_command(SC_FLASH_COMMAND command);
-bool try_guess_lite(void);
-extern uint16_t isSCLite;
-
 #ifdef __cplusplus
 }
 #endif
