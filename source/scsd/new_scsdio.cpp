@@ -40,7 +40,7 @@ void WriteSector(uint8_t* buff, uint32_t sector, uint32_t writenum)
 	uint64_t crc16;//并行4个
 	sc_change_mode(en_sdcard);
 	SDResetCard();
-	auto param = isSDHC ? sector : (sector << 9);
+	auto param = is_sdhc() ? sector : (sector << 9);
 	SDCommandAndDropResponse(WRITE_MULTIPLE_BLOCK, param);
 	SDSendClock(0x10);
 	for (auto buffEnd = buff + writenum * 512 ; buff < buffEnd; buff += 512)
@@ -65,7 +65,7 @@ extern "C" void sdms_data_read_s(void* buff);
 bool ReadSector(uint8_t *buff, uint32_t sector, uint32_t readnum)
 {
 	MemcntGuard guard{true};
-	auto param = isSDHC ? sector : (sector << 9);
+	auto param = is_sdhc() ? sector : (sector << 9);
     sc_change_mode(en_sdcard);
 	SDResetCard();
 	SDCommandAndDropResponse(READ_MULTIPLE_BLOCK, param);
