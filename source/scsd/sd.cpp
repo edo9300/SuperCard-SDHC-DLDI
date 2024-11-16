@@ -10,7 +10,11 @@ void SDSendClock(uint32_t num) {
 	}
 }
 
-uint16_t isSDHC = false;
+static uint16_t isSDHC = false;
+
+[[gnu::noinline]] bool is_sdhc() {
+	return isSDHC;
+}
 
 inline constexpr auto NUM_STARTUP_CLOCKS = 30000;
 inline constexpr auto MAX_STARTUP_TRIES = 5000;

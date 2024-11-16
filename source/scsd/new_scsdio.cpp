@@ -38,7 +38,7 @@ void WriteSector(uint8_t* buff, uint32_t sector, uint32_t writenum)
 	uint64_t crc16;//并行4个
 	sc_change_mode(en_sdram + en_sdcard);
 	SDResetCard();
-	auto param = isSDHC ? sector : (sector << 9);
+	auto param = is_sdhc() ? sector : (sector << 9);
 	SDCommandAndDropResponse(WRITE_MULTIPLE_BLOCK, param);
 	for (auto buffEnd = buff + writenum * 512 ; buff < buffEnd; buff += 512)
 	{
@@ -57,10 +57,10 @@ bool ReadSector(uint8_t *buff, uint32_t sector, uint32_t readnum)
 	uint16_t res = true;
 	MemcntGuard guard{true};
 	sc_change_mode(en_sdram + en_sdcard);
-	auto param = isSDHC ? sector : (sector << 9);
+	auto param = is_sdhc() ? sector : (sector << 9);
 	SDCommand(READ_MULTIPLE_BLOCK, param); // R0 = 0x12, R1 = 0, R2 as calculated above
 	{
-		MemcntGuard guard{!!isSCLite};
+		MemcntGuard guard{is_scLite()};
 		for(auto buffer_end = buff + readnum*(512); buff < buffer_end; buff += 512)
 		{
 			res = SCSD_readData(buff); // Add R6, left shifted by 9, to R4 before casting

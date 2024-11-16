@@ -9,7 +9,7 @@ bool SDInit(void);
 void SDSendClock(uint32_t num);
 void SDResetCard();
 
-extern uint16_t isSDHC;
+bool is_sdhc(void);
 
 #ifdef __cplusplus
 }

@@ -1,7 +1,10 @@
 #include <utility>
 #include "sc_commands.h"
 
-uint16_t isSCLite = false;
+static uint16_t isSCLite = false;
+[[gnu::noinline]] bool is_scLite() {
+	return isSCLite;
+}
 
 #define SC_FLASH_IDLE			((uint16_t) 0xF0)
 
