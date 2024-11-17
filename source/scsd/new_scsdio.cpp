@@ -38,7 +38,7 @@ void WriteSector(uint8_t* buff, uint32_t sector, uint32_t writenum)
 {
 	MemcntGuard guard{true};
 	uint64_t crc16;//并行4个
-	sc_change_mode(en_sdcard);
+	sc_change_mode(en_sdram + en_sdcard);
 	SDResetCard();
 	auto param = is_sdhc() ? sector : (sector << 9);
 	SDCommandAndDropResponse(WRITE_MULTIPLE_BLOCK, param);
@@ -66,7 +66,7 @@ bool ReadSector(uint8_t *buff, uint32_t sector, uint32_t readnum)
 {
 	MemcntGuard guard{true};
 	auto param = is_sdhc() ? sector : (sector << 9);
-    sc_change_mode(en_sdcard);
+    sc_change_mode(en_sdram + en_sdcard);
 	SDResetCard();
 	SDCommandAndDropResponse(READ_MULTIPLE_BLOCK, param);
 	{
@@ -311,7 +311,7 @@ static bool SCSD_readData(void* buffer) {
 }
 
 bool MemoryCard_IsInserted(void) {
-    sc_change_mode(en_sdcard);
+    sc_change_mode(en_sdram + en_sdcard);
 	return (REG_SCSD_CMD<uint16_t> & 0x300)==0; // 读取状态寄存器的值
 }
 
