@@ -56,6 +56,7 @@ void WriteSector(uint8_t* buff, uint32_t sector, uint32_t writenum)
 	SDCommandAndDropResponse(STOP_TRANSMISSION, 0);
 	SDSendClock(0x10);
 	WaitOnWrite(false);
+	sc_change_mode(en_sdram);
 	return;
 }
 
@@ -78,6 +79,7 @@ bool ReadSector(uint8_t *buff, uint32_t sector, uint32_t readnum)
 	SDCommandAndDropResponse(STOP_TRANSMISSION, 0); // Command to presumably stop reading
 
 	SDSendClock(0x10);	   // Send clock signal
+	sc_change_mode(en_sdram);
 	return res;
 }
 
