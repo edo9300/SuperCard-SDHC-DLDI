@@ -8,23 +8,13 @@ static inline void drop_response(int bytesToDrop)
 	while (((REG_SCSD_CMD<uint16_t> & 0x01) != 0));
 
 	// 实际上，当跳出这个循环的时候，已经读了一个bit了，后续会多读一个bit，但是这是抛弃的rsp,因此多读一个bit也就是多一个时钟周期罢了
-	
-   asm volatile(
-		"2: \n\t"
-			"ldmia %0, {r0-r3} \n\t"   
-			"subs %1, %1, #1 \n\t"   // bytesToDrop--
-			"bne 2b \n\t"			// 如果byteNum不为0，则继续循环
-		: // 没有输出
-		: "r" ((uint32_t)&REG_SCSD_CMD<uint16_t>), "r" (bytesToDrop) // 输入
-		: "r0", "r1", "r2", "r3", "cc" // 破坏列表
-	);
-	// while (bytesToDrop--)
-	// {
-	//	 *cmd_addr_u32;
-	//	 *cmd_addr_u32;
-	//	 *cmd_addr_u32;
-	//	 *cmd_addr_u32;
-	// }
+	while (--bytesToDrop)
+	{
+		dummy_read(REG_SCSD_CMD<uint32_t>);
+		dummy_read(REG_SCSD_CMD<uint32_t>);
+		dummy_read(REG_SCSD_CMD<uint32_t>);
+		dummy_read(REG_SCSD_CMD<uint32_t>);
+	}
 }
 
 inline bool read_response(uint8_t* dest, uint32_t length) {
@@ -106,37 +96,15 @@ void SDCommand(SD_COMMANDS command, uint32_t argument)
 
 	dummy_read(REG_SCSD_CMD<uint16_t>);
 
-	auto& send_command_addr = REG_SCSD_CMD<uint32_t>; // 假设sd_comadd也是数据写入地址
-
-	#define SEND_ONE_COMMAND_BYTE \
-		"ldrb r0, [%0], #1 \n"		 /* uint32_t data = *tempDataPtr++; */ \
-		"orr  r0, r0, r0, lsl #17 \n"  /* data = data | (data << 17); */ \
-		"mov  r1, r0, lsl #2 \n"	   \
-		"mov  r2, r0, lsl #4 \n"	   \
-		"mov  r3, r0, lsl #6 \n"	   \
-		"stmia %1, {r0-r3}\n"
-	asm volatile(//发送6次
-	"1:\n"
-		SEND_ONE_COMMAND_BYTE
-		SEND_ONE_COMMAND_BYTE
-		"cmp %0, %2\n"
-		"blt 1b"
-		: // 没有输出
-		: "r"((uint32_t)databuff),"r"((uint32_t)&send_command_addr),"r"(((uint32_t)databuff) + 6)
-		: "r0", "r1", "r2", "r3"// 破坏列表
-	);
-	// int length = 6;
-	// while (length--)
-	// {
-	//	 uint32_t data = *tempDataPtr++;
-	//	 data = data | (data << 17);
-	//	 *send_command_addr = data;
-	//	 *send_command_addr = data << 2;
-	//	 *send_command_addr = data << 4;
-	//	 *send_command_addr = data << 6;
-	//	 // sd_dataadd[0] ~ [3]至少目前证明都是镜像的，可以随便用，可以用stmia来加速
-	//	 // 本质上是将U16的写合并成uint32_t的写
-	// }
+	auto* send_command_addr = &REG_SCSD_CMD<uint32_t>; // 假设sd_comadd也是数据写入地址
+	
+	for(uint32_t data : databuff) {
+		data |= data << 17;
+		*send_command_addr++ = data;
+		*send_command_addr++ = data << 2;
+		*send_command_addr++ = data << 4;
+		*send_command_addr++ = data << 6;
+	}
 }
 
 void SDCommandAndDropResponse(SD_COMMANDS command, uint32_t argument, uint32_t bytesToDrop) {

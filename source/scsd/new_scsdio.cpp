@@ -3,6 +3,7 @@
 #include "sd_commands.h"
 #include "memcnt_guard.h"
 #include "sd.h"
+#include <aeabi.h>
 
 template<typename T>
 static inline auto& REG_SCSD_DATAADD = *(volatile T*)0x09000000;
@@ -10,7 +11,8 @@ static inline auto& REG_SCSD_DATAADD = *(volatile T*)0x09000000;
 template<typename T>
 static inline auto& REG_SCSD_DATAREAD = *(volatile T*)0x09100000;
 
-bool SCSD_readData(void* buffer);
+static bool SCSD_readData(void* buffer);
+static void SCSD_writeData(void* buff, void* crc16buff);
 
 uint64_t sdio_crc16_4bit_checksum(void* data, uint32_t num_words);
 
@@ -40,10 +42,15 @@ void WriteSector(uint8_t* buff, uint32_t sector, uint32_t writenum)
 	SDResetCard();
 	auto param = is_sdhc() ? sector : (sector << 9);
 	SDCommandAndDropResponse(WRITE_MULTIPLE_BLOCK, param);
+	SDSendClock(0x10);
 	for (auto buffEnd = buff + writenum * 512 ; buff < buffEnd; buff += 512)
 	{
-		crc16 = sdio_crc16_4bit_checksum((uint32_t*)(buff), 512 / sizeof(uint32_t));
-		sd_data_write((uint16_t*)(buff), (uint8_t*)(&crc16));
+		crc16 = sdio_crc16_4bit_checksum(buff, 512 / sizeof(uint32_t));
+		union {
+			uint64_t val;
+			uint16_t arr[4];
+		} u{crc16};
+		SCSD_writeData(buff, u.arr);
 		SDSendClock(0x10);
 	}
 	SDCommandAndDropResponse(STOP_TRANSMISSION, 0);
@@ -74,32 +81,15 @@ bool ReadSector(uint8_t *buff, uint32_t sector, uint32_t readnum)
 	return res;
 }
 
+union ptr_cast {
+	void* ptr;
+	uint8_t* u8;
+	uint16_t* u16;
+	uint32_t* u32;
+};
+
 #define BUSY_WAIT_TIMEOUT 500000
 #define SCSD_STS_BUSY 0x100
-
-void sd_data_write(uint16_t *buff, uint8_t *crc16buff)
-{
-	WaitOnWrite(false); // Note:两边的等待是不一致的
-	dummy_read(REG_SCSD_DATAADD<uint16_t>);
-	REG_SCSD_DATAADD<uint16_t> = 0; // start bit
-	{
-		MemcntGuard guard{false};
-
-		auto writeuint16_t = [](uint32_t data)//lambda Function
-			{
-				
-			// Write the data to the card
-			// 4 halfwords are transmitted to the Supercard at once, for timing purposes
-			// Only the first halfword needs to contain data for standard SuperCards
-			// For the SuperCard Lite, the data is split into 4 nibbles, one per halfword, with this arrangment:
-			//		 The first nibble is taken from bits 4-7 of the second halfword
-			//		 The second nibble is taken from bits 4-7 of the first halfword
-			//		 The third nibble is taken from bits 4-7 of the fourth halfword
-			//		 The fourth nibble is taken from bits 4-7 of the third halfword
-				data |= (data << 20);
-				REG_SCSD_DATAADD<uint32_t> = data;
-				REG_SCSD_DATAADD<uint32_t> = (data >> 8);
-			};
 
 #define LOAD_ORR_CONSTANT \
 	"mov     r4, #255\n" \
@@ -120,120 +110,136 @@ void sd_data_write(uint16_t *buff, uint8_t *crc16buff)
 	"stmia %1, {r0-r1}\n"   \
 	"stmia %1, {r2-r3}\n"
 
-		if((uint32_t)buff & 3){//unaligned
-			uint8_t* buff_u8 = (uint8_t*)buff;
-			uint16_t byteHI;
-			uint16_t byteLo;
-			for (int i = 0; i < 512; i += 2){
-				byteLo = *buff_u8++;
-				byteHI = *buff_u8++;
-				writeuint16_t((byteHI << 8) | byteLo);
-			}
-		}
-		else if((uint32_t)buff & 2){//uint16_t aligned
+static void SCSD_writeData16(uint16_t* buff_u16) {
+	asm volatile(
+		LOAD_ORR_CONSTANT
+		WRITE_U16
+		WRITE_U32
+	"1:\n"
+		WRITE_U32
+		WRITE_U32
+		"cmp %0, %2\n"
+		"blt 1b\n"
+		WRITE_U16
+		: // 没有输出
+		: "r"((intptr_t)buff_u16),"r"((intptr_t)&REG_SCSD_DATAADD<uint32_t>),"r"(((intptr_t)buff_u16) + 510/*512-2*/)
+		: "r0", "r1", "r2", "r3", "r4", "cc"// 破坏列表
+	);
+}
+
+static void SCSD_writeData8(uint8_t* buff_u8) {
+	auto writeU16 = [](uint32_t data) {
+
+	// Write the data to the card
+	// 4 halfwords are transmitted to the Supercard at once, for timing purposes
+	// Only the first halfword needs to contain data for standard SuperCards
+	// For the SuperCard Lite, the data is split into 4 nibbles, one per halfword, with this arrangment:
+	//		 The first nibble is taken from bits 4-7 of the second halfword
+	//		 The second nibble is taken from bits 4-7 of the first halfword
+	//		 The third nibble is taken from bits 4-7 of the fourth halfword
+	//		 The fourth nibble is taken from bits 4-7 of the third halfword
+		data |= (data << 20);
+		REG_SCSD_DATAADD<uint32_t> = data;
+		REG_SCSD_DATAADD<uint32_t> = (data >> 8);
+	};
+	for (int i = 0; i < 512; i += 2){
+		uint16_t byteLo = *buff_u8++;
+		uint16_t byteHI = *buff_u8++;
+		writeU16((byteHI << 8) | byteLo);
+	}
+}
+
+void SCSD_writeData(void* buffer, void* crc_buff)
+{
+	WaitOnWrite(false);
+	dummy_read(REG_SCSD_DATAADD<uint16_t>);
+	REG_SCSD_DATAADD<uint16_t> = 0; // start bit
+	{
+		MemcntGuard guard{false};
+
+		if(((intptr_t)buffer & 0x03) == 0) [[likely]] {
 			asm volatile(
 				LOAD_ORR_CONSTANT
-				WRITE_U16
-				WRITE_U32
 			"1:\n"
 				WRITE_U32
 				WRITE_U32
 				"cmp %0, %2\n"
-				"blt 1b\n"
-				WRITE_U16
+				"blt 1b"
 				: // 没有输出
-				: "r"((uint32_t)buff),"r"((uint32_t)&REG_SCSD_DATAADD<uint32_t>),"r"(((uint32_t)buff) + 510/*512-2*/)
+				: "r"((intptr_t)buffer),"r"((uint32_t)&REG_SCSD_DATAADD<uint32_t>),"r"(((intptr_t)buffer) + 512)
 				: "r0", "r1", "r2", "r3", "r4", "cc"// 破坏列表
 			);
-		}
-		else{//uint32_t aligned
-			asm volatile(
-				LOAD_ORR_CONSTANT
-			"2:\n"
-				WRITE_U32
-				WRITE_U32
-				"cmp %0, %2\n"
-				"blt 2b"
-				: // 没有输出
-				: "r"((uint32_t)buff),"r"((uint32_t)&REG_SCSD_DATAADD<uint32_t>),"r"(((uint32_t)buff) + 512)
-				: "r0", "r1", "r2", "r3", "r4", "cc"// 破坏列表
-			);
-			// uint32_t *buff_u32 = (uint32_t*)buff;
-			// for (int i = 0; i < 512; i += 4){
-			//	 writeuint32_t(*buff_u32++);
-			// }//or?
-			// for (int i = 0; i < 512; i += 2){
-			//	 writeuint16_t(*buff++);
-			// }
+		} else if(((intptr_t)buffer & 0x01) == 0) {
+			SCSD_writeData16(ptr_cast{buffer}.u16);
+		} else {
+			SCSD_writeData8(ptr_cast{buffer}.u8);
 		}
 
-		
-		if ((uint32_t)crc16buff & 1)
-		{   
-			uint16_t byteHI;
-			uint16_t byteLo;
-			for (int i = 0; i < 4; i ++){
-				byteLo = *crc16buff++;
-				byteHI = *crc16buff++;
-				writeuint16_t((byteHI << 8) | byteLo);
-			}
-		}
-		else if ((uint32_t)crc16buff & 2){
-			asm volatile(
-				WRITE_U16
-				WRITE_U16
-				WRITE_U16
-				WRITE_U16
-				: // 没有输出
-				: "r"((uint32_t)crc16buff),"r"((uint32_t)&REG_SCSD_DATAADD<uint32_t>)
-				: "r0", "r1", "r2", "r3", "cc"// 破坏列表
-			);
-		}
-		else{
-			asm volatile(
-				LOAD_ORR_CONSTANT
-				WRITE_U32
-				WRITE_U32
-				: // 没有输出
-				: "r"((uint32_t)crc16buff),"r"((uint32_t)&REG_SCSD_DATAADD<uint32_t>)
-				: "r0", "r1", "r2", "r3", "r4", "cc"// 破坏列表
-			);
-			// for (int i = 0; i < 4; i++)
-			// {
-			//	 writeuint16_t(*crc16buff++);
-			// }
-		}
+		asm volatile(
+			LOAD_ORR_CONSTANT
+			WRITE_U32
+			WRITE_U32
+			:
+			: "r"(crc_buff),"r"((intptr_t)&REG_SCSD_DATAADD<uint32_t>)
+			: "r0", "r1", "r2", "r3", "r4", "cc"
+		);
+
 		REG_SCSD_DATAADD<uint16_t> = 0xFF; // end bit
 	}
 	WaitOnWrite(true); // Note:这个部分与上个部分是不一样的
 }
 
-bool SCSD_readData (void* buffer) {
-	uint8_t* buff_u8 = (uint8_t*)buffer;
-	// FIXME: There might be the need for a timeout, 500000 was attempted but wasn't enough
+#define LOAD_U32_ALIGNED_2WORDS \
+		"ldmia  %2, {r0-r7} \n"   /*从REG_SCSD_DATAREAD_32_ADDR读取8个32位值到r0-r7*/  \
+		"and	r3, r3, %3 \n"	 /*r3 &= maskHi*/									 \
+		"and	r7, r7, %3 \n"	 \
+		"orr	r3, r3, r1, lsr #16 \n"	 /*r3 |= (r1 >> 16)*/						\
+		"orr	r7, r7, r5, lsr #16 \n"	 \
+		"stmia  %0!, {r3,r7} \n"  /*将r3和r7的值存储到buff_u32指向的位置，并将buff_u32增加8字节*/
+
+#define LOAD_U32_ALIGNED_1WORDS \
+		"ldmia  %2, {r0-r3} \n"   /*从REG_SCSD_DATAREAD_32_ADDR读取8个32位值到r0-r7*/  \
+		"and	r3, r3, %3 \n"	 /*r3 &= maskHi*/									 \
+		"orr	r3, r3, r1, lsr #16 \n"	 /*r3 |= (r1 >> 16)*/						\
+		"str	r3, [%0], #4 \n"  /*将r3和r7的值存储到buff_u32指向的位置，并将buff_u32增加8字节*/
+
+#define LOAD_U32_ALIGNED_U16 \
+		"ldmia  %2, {r0-r1} \n"   /*从REG_SCSD_DATAREAD_32_ADDR读取8个32位值到r0-r7*/  \
+		"lsr r1, r1, #16\n"	 \
+		"strh r1, [%0], #2\n"	   //uint16_t
+
+void SCSD_readData16(uint16_t* buff_u16) {
+	const uint32_t maskHi = 0xFFFF0000;
+	asm volatile(
+		LOAD_U32_ALIGNED_U16
+		LOAD_U32_ALIGNED_1WORDS
+		LOAD_U32_ALIGNED_2WORDS
+	"1: \n"
+		LOAD_U32_ALIGNED_2WORDS
+		LOAD_U32_ALIGNED_2WORDS
+		"cmp	%0, %1 \n"
+		"blt	1b \n"			  // if buffer<bufferEnd continue;
+		LOAD_U32_ALIGNED_U16
+		:
+		: "r" ((intptr_t)buff_u16), "r" (((intptr_t)buff_u16)+510/*512-2*/), "r" (&REG_SCSD_DATAREAD<uint32_t>), "r" (maskHi)
+		: "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "memory","cc"
+	);
+}
+
+static void SCSD_readData8(uint8_t* buff_u8) {
+	for(int i = 0; i < 256; ++i) {
+		dummy_read(REG_SCSD_DATAREAD<uint32_t>);
+		auto temp = static_cast<uint16_t>(REG_SCSD_DATAREAD<uint32_t> >> 16);
+		*buff_u8++ = static_cast<uint8_t>(temp);
+		*buff_u8++ = static_cast<uint8_t>(temp >> 8);
+	}
+}
+
+bool SCSD_readData(void* buffer) {
 	WaitOnRead(true);
 	const uint32_t maskHi = 0xFFFF0000;
-	#define LOAD_U32_ALIGNED_2WORDS \
-			"ldmia  %2, {r0-r7} \n"   /*从REG_SCSD_DATAREAD_32_ADDR读取8个32位值到r0-r7*/  \
-			"and	r3, r3, %3 \n"	 /*r3 &= maskHi*/									 \
-			"and	r7, r7, %3 \n"	 \
-			"orr	r3, r3, r1, lsr #16 \n"	 /*r3 |= (r1 >> 16)*/						\
-			"orr	r7, r7, r5, lsr #16 \n"	 \
-			"stmia  %0!, {r3,r7} \n"  /*将r3和r7的值存储到buff_u32指向的位置，并将buff_u32增加8字节*/
 
-	#define LOAD_U32_ALIGNED_1WORDS \
-			"ldmia  %2, {r0-r3} \n"   /*从REG_SCSD_DATAREAD_32_ADDR读取8个32位值到r0-r7*/  \
-			"and	r3, r3, %3 \n"	 /*r3 &= maskHi*/									 \
-			"orr	r3, r3, r1, lsr #16 \n"	 /*r3 |= (r1 >> 16)*/						\
-			"str	r3, [%0], #4 \n"  /*将r3和r7的值存储到buff_u32指向的位置，并将buff_u32增加8字节*/
-
-	#define LOAD_U32_ALIGNED_U16 \
-			"ldmia  %2, {r0-r1} \n"   /*从REG_SCSD_DATAREAD_32_ADDR读取8个32位值到r0-r7*/  \
-			"lsr r1, r1, #16\n"	 \
-			"strh r1, [%0], #2\n"	   //uint16_t
-
-
-	if (((uint32_t)buff_u8 & 0x03) == 0){//uint32_t aligned
+	if(((intptr_t)buffer & 0x03) == 0) [[likely]] {
 		asm volatile(
 		"1: \n"
 			LOAD_U32_ALIGNED_2WORDS
@@ -244,51 +250,17 @@ bool SCSD_readData (void* buffer) {
 			: "r" (buffer), "r" ((uint32_t)buffer+512), "r" (&REG_SCSD_DATAREAD<uint32_t>), "r" (maskHi)
 			: "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "memory","cc"
 		);
-		// i=256;
-		// uint16_t* buff = (uint16_t*)buffer;
-		// while(i--) {
-
-		// 	dummy_read(REG_SCSD_DATAREAD<uint32_t>);
-		// 	*buff++ = REG_SCSD_DATAREAD<uint32_t> >> 16; 
-		// }
-	}else if ((((uint32_t)buff_u8 & 0x01) == 0)) {//uint16_t aligned
-		asm volatile(
-			LOAD_U32_ALIGNED_U16
-			LOAD_U32_ALIGNED_1WORDS
-			LOAD_U32_ALIGNED_2WORDS
-		"2: \n"
-			LOAD_U32_ALIGNED_2WORDS
-			LOAD_U32_ALIGNED_2WORDS
-			"cmp	%0, %1 \n"
-			"blt	2b \n"			  // if buffer<bufferEnd continue;
-			LOAD_U32_ALIGNED_U16
-			:
-			: "r" (buffer), "r" ((uint32_t)buffer+510/*512-2*/), "r" (&REG_SCSD_DATAREAD<uint32_t>), "r" (maskHi)
-			: "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "memory","cc"
-		);
-	} else 
-	{
-		uint32_t temp;
-		int i=256;
-		while(i--) {
-			dummy_read(REG_SCSD_DATAREAD<uint32_t>);
-			temp = REG_SCSD_DATAREAD<uint32_t> >> 16; 
-			*buff_u8++ = (uint8_t)temp;
-			*buff_u8++ = (uint8_t)(temp >> 8);
-		}
+	} else if(((intptr_t)buffer & 0x01) == 0) {
+		SCSD_readData16(ptr_cast{buffer}.u16);
+	} else {
+		SCSD_readData8(ptr_cast{buffer}.u8);
 	}
-
-	asm volatile(
-			"ldmia  %0, {r0-r7} \n"   // drop the crc16
-			"ldrh   r1, [%0] \n"   // end by reading as u16
-			:
-			: "r" (&REG_SCSD_DATAREAD<uint32_t>)
-			: "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7"
-		);
-	// for (i = 0; i < 8; i++) {
-	// 	*REG_SCSD_DATAREAD_32_ADDR;
-	// }
-	// *REG_SCSD_DATAREAD_ADDR;
+	
+	//crc16
+	uint32_t buff[8];
+	__aeabi_memcpy4(buff, (void*)&REG_SCSD_DATAREAD<uint32_t>, 8 * 4);
+	//end bit
+	dummy_read(REG_SCSD_DATAREAD<uint16_t>);
 
 	return true;
 }
