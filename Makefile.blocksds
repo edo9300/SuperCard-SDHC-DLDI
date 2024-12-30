@@ -23,7 +23,7 @@ BINDIRS		:=
 # Defines passed to all files
 # ---------------------------
 
-DEFINES		:=
+DEFINES		:= -flto
 
 # Libraries
 # ---------

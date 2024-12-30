@@ -28,19 +28,19 @@ INCLUDES	:=	include
 #---------------------------------------------------------------------------------
 ARCH	:=	-mthumb-interwork
 
-CFLAGS	:=	-g -Wall -Ofast\
+CFLAGS	:=	-g -Wall -Os \
 			-mcpu=arm7tdmi -mtune=arm7tdmi -fomit-frame-pointer\
-			-ffast-math \
+			-ffast-math -flto \
 			$(ARCH)
 
 CFLAGS	+=	$(INCLUDE) -fPIC
 
 CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++20
 
-ASFLAGS	:=	-g $(ARCH) $(INCLUDE)
-LDFLAGS	=	-nostartfiles -nostdlib -T dldi.ld -g $(ARCH) -Wl,-Map,$(TARGET).map
+ASFLAGS	:=	-g $(ARCH) $(INCLUDE) -flto
+LDFLAGS	=	-nostartfiles -flto -nostdlib -T dldi.ld -g $(ARCH) -Wl,-Map,$(TARGET).map
 
-LIBS	:= 
+LIBS	:= -lgcc
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
