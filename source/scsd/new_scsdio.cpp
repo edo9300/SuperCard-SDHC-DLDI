@@ -4,10 +4,6 @@
 #include "memcnt_guard.h"
 #include "sd.h"
 
-#if defined(__BLOCKSDS__)
-#include <aeabi.h>
-#endif
-
 template<typename T>
 static inline auto& REG_SCSD_DATAADD = *(volatile T*)0x09000000;
 
@@ -175,12 +171,7 @@ bool SCSD_readData(void* buffer) {
 	} else {
 		SCSD_readData8(ptr_cast{buffer}.u8);
 	}
-	
 	//crc16
-#if defined(__BLOCKSDS__)
-	uint32_t buff[8];
-	__aeabi_memcpy4(buff, (void*)&REG_SCSD_DATAREAD<uint32_t>, 8 * 4);
-#else
 	dummy_read(REG_SCSD_DATAREAD<uint32_t>);
 	dummy_read(REG_SCSD_DATAREAD<uint32_t>);
 	dummy_read(REG_SCSD_DATAREAD<uint32_t>);
@@ -189,7 +180,6 @@ bool SCSD_readData(void* buffer) {
 	dummy_read(REG_SCSD_DATAREAD<uint32_t>);
 	dummy_read(REG_SCSD_DATAREAD<uint32_t>);
 	dummy_read(REG_SCSD_DATAREAD<uint32_t>);
-#endif
 	//end bit
 	dummy_read(REG_SCSD_DATAREAD<uint16_t>);
 

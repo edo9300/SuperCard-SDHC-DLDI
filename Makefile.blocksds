@@ -79,13 +79,9 @@ SOURCES_CPP	:= $(shell find -L $(SOURCEDIRS) -name "*.cpp")
 ifeq ($(DLDI_ARM9),1)
 	ARCH	:= -mcpu=arm946e-s+nofp
 	SPECS	:= $(BLOCKSDS)/sys/crts/dldi_arm9.specs
-	#for __aeabi_memcpy4
-	LIBS += -lnds9
 else
 	ARCH	:= -mcpu=arm7tdmi
 	SPECS	:= $(BLOCKSDS)/sys/crts/dldi_arm7.specs
-	#for __aeabi_memcpy4
-	LIBS += -lnds7
 endif
 
 WARNFLAGS	:= -Wall
