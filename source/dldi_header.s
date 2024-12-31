@@ -22,8 +22,8 @@
     .byte   __dldi_header_fix_flags     @ Sections to fix.
                                         @ Calculated automatically in the link script.
 #else
-	.byte	DLDI_SIZE_8KB
-	.byte	FIX_GOT | FIX_BSS | FIX_GLUE	@ Sections to fix
+	.byte	DLDI_SIZE_4KB
+	.byte	FIX_BSS	@ Sections to fix
 #endif
     .byte   0x00                        @ Space allocated in the .nds file; leave empty.
 
